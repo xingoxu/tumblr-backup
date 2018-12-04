@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Tumblr Backup</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" media="screen" href="css/main.css" />
+  <link rel="stylesheet" type="text/css" media="screen" href="css/element.css" />
+</head>
+
+<body>
+  <div id="app">
+    <el-tabs v-model="activeTab" @tab-click="handleTabClick">
+      <el-tab-pane label="我的收藏" name="favouriteDownload">
+        
+      </el-tab-pane>
+      <el-tab-pane label="用户下载" name="userDownload">
+        <div>
+          <div style="margin: 0 10px;">
+            <el-input placeholder="(https://)?*(.tumblr.com)?" v-model="userDownloadUrlInput">
+              <el-select v-model="userDownloadTypeSelect" slot="prepend" placeholder="请选择" style="width: 100px">
+                <el-option label="图片" value="photo"></el-option>
+                <el-option label="影片" value="video"></el-option>
+              </el-select>
+              <el-button slot="append" 
+                @click="getUserPics"
+                icon="el-icon-search"></el-button>
+            </el-input>
+            
+          </div>
+
+          <div style="min-height: 400px;" v-loading="gettingUserDownloadImages">
+            <div v-for="img in userImages" class="userDownloadPicItems">
+              <img :src="img.src" />
+              <div>
+                <div>{{ img.summary }}</div>
+                <div><a :href="img.post_url">{{ img.date }}</a></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </el-tab-pane>
+      <el-tab-pane label="下载管理" name="downloadManager">
+
+      </el-tab-pane>
+    </el-tabs>
+  </div>
+  <script src="js/vue.js"></script>
+  <script src="js/element.js"></script>
+  <script src="js/index.js"></script>
+</body>
+
+</html>
