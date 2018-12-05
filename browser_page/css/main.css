@@ -13,7 +13,84 @@ body, html {
 
 .userDownloadPicItems {
   height: 200px;
+  display: inline-block;
+  margin: 3px 2px;
+  position: relative;
 }
 .userDownloadPicItems img {
   height: 100%;
+  display: block;
+  transition: transform .135s cubic-bezier(0.0,0.0,0.2,1),opacity linear .15s;
+}
+
+.userDownloadPicItems a {
+  outline: 0;
+  text-decoration: none;
+  color: #8e8e8e;
+  font-size: 10px;
+}
+
+.userDownloadPicItems>.summary {
+  position: absolute;
+  background-image: linear-gradient(to bottom,rgba(0,0,0,0.26),transparent 70px,transparent);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  font-size: 14px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all .135s cubic-bezier(0.0,0.0,0.2,1);
+  cursor: pointer;
+}
+
+.userDownloadPicItems:hover > .summary {
+  visibility: visible;
+  opacity: 1;
+}
+
+.userDownloadPicItems>.summary>div {
+  margin: 10px 0;
+}
+
+.userDownloadPicItems>.summary>div >span {
+  background: rgba(255,255,255,.5);
+  border-radius: 16px;
+  padding: 0 16px;
+}
+
+.userDownloadPicItems .checkbox {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 8px;
+  opacity: 0;
+  transition: opacity .135s cubic-bezier(0.0,0.0,0.2,1);
+}
+
+.userDownloadPicItems:hover .checkbox {
+  opacity: 1;
+}
+.userDownloadPicItems.checked {
+  background-color: #e8f0fe;
+}
+
+.userDownloadPicItems.checked img {
+  transform: translateZ(0px) scale3d(0.79, 0.79, 1);
+}
+
+.userDownloadPicItems.checked .checkbox {
+  opacity: 1;
+}
+
+#pane-userDownload .bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 20px;
+  box-shadow: 0 -4px 6px 0 rgba(0,0,0,0.14), 0 -1px 10px 0 rgba(0,0,0,0.12);
+  background: #FFF;
+  line-height: 40px;
+  z-index: 1;
 }

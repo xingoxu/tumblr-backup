@@ -19,10 +19,9 @@
       <el-tab-pane label="用户下载" name="userDownload">
         <div>
           <div style="margin: 0 10px;">
-            <el-input placeholder="(https://)?*(.tumblr.com)?" v-model="userDownloadUrlInput">
-              <el-select v-model="userDownloadTypeSelect" slot="prepend" placeholder="请选择" style="width: 100px">
-                <el-option label="图片" value="photo"></el-option>
-                <el-option label="影片" value="video"></el-option>
+            <el-input placeholder="(https://)?*(.tumblr.com)?" v-model="userDownload.userDownloadUrlInput">
+              <el-select v-model="userDownload.userDownloadTypeSelect" slot="prepend" placeholder="请选择" style="width: 100px">
+                <el-option v-for="(label, key) in userDownload.userDownloadTypeSelectOptions" :key="key" :label="label" :value="key"></el-option>
               </el-select>
               <el-button slot="append" 
                 @click="getUserPics"
@@ -31,19 +30,56 @@
             
           </div>
 
-          <div style="min-height: 400px;" v-loading="gettingUserDownloadImages">
-            <div v-for="img in userImages" class="userDownloadPicItems">
+          <div style="
+            min-height: 400px;
+            text-align: center;
+            margin-top: 5px;
+            font-size: 0;
+            padding-bottom: 70px;" v-loading="userDownload.gettingUserDownloadImages">
+            <div v-for="img in userDownload.userImages" class="userDownloadPicItems" :class="{ 'checked': img.checked }">
               <img :src="img.src" />
-              <div>
-                <div>{{ img.summary }}</div>
-                <div><a :href="img.post_url">{{ img.date }}</a></div>
+              <div class="summary" @click="img.checked = !img.checked">
+                <div v-if="img.summary && img.summary!= ''"><span>{{ img.summary }}</span></div>
+                <div><a :href="img.post_url" target="_blank">{{ img.date }}</a></div>
+              </div>
+              <div class="checkbox">
+                <el-checkbox v-model="img.checked"></el-checkbox>
               </div>
             </div>
+            <div style="margin-top: 7px;">
+                <el-button type="primary" v-if="userDownload.nextPage" @click="getUserPicsNextPage">加载更多</el-button>
+            </div>
+          </div>
+
+          <div class="bottom"     
+            v-if="userDownload.userImages.length > 0">
+            <el-checkbox
+              :value="userDownloadAllChecked" 
+              @input="userDownloadCheckAll">当前全选</el-checkbox>
+            <el-checkbox 
+              v-model="userDownload.downloadAll">下载该博客所有{{ userDownload.userDownloadTypeSelectOptions[userDownload.userDownloadTypeSelect] }}</el-checkbox>
+            <el-button
+              style="float:right;"
+              type="primary">下载</el-button>
           </div>
         </div>
       </el-tab-pane>
       <el-tab-pane label="下载管理" name="downloadManager">
 
+      </el-tab-pane>
+      <el-tab-pane label="设置" name="settings">
+        <el-form label-width="80px">
+          <el-form-item label="下载路径">
+            <el-input :disabled="true" v-model="settings.savePath" >
+              <el-button slot="append" icon="el-icon-more-outline
+              " @click="showSaveDialog"></el-button>
+            </el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" >保存</el-button>
+            
+          </el-form-item>
+        </el-form>
       </el-tab-pane>
     </el-tabs>
   </div>
