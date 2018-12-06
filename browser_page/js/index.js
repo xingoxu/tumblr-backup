@@ -198,7 +198,6 @@ new Promise((resolve, reject) => {
         } catch (e) {
           return;
         }
-        let { oauth_token, oauth_verifier } = auth_data;
         request.post({
           url: 'https://www.tumblr.com/oauth/access_token',
           oauth: {
@@ -219,6 +218,13 @@ new Promise((resolve, reject) => {
           this.user.secret = user_key.oauth_token_secret;
 
           this.getUserInfo();
+          storage.set('user', {
+            key: this.user.key,
+            secret: this.user.secret
+          }, error => {
+            // error handle
+            console.log(error);
+          });
         })
       },
       getUserInfo() {

@@ -82,7 +82,7 @@
               @click="generateLoginPage"
               :disabled="user.name"
               >
-              <i class="el-icon-loading" v-if="generatingLoginPage"></i>
+              <i class="el-icon-loading" v-if="settingPage.generatingLoginPage"></i>
               Login With Tumblr
             </el-button>
             <div class="logged-in" v-if="user.name">{{ user.name }}</div>

@@ -18,7 +18,7 @@ const server = http.createServer(function (request, response) {
   `);
   let search = url.parse(request.url).search;
   if (!search) return;
-  win.webContents.send('loginCallback',qs.parse(search));
+  win.webContents.send('loginCallback',qs.parse(search.slice(1)));
 });
 
 function createWindow () {
