@@ -80,12 +80,12 @@
               class="tumblr-login-button"
               type="primary"
               @click="generateLoginPage"
-              :disabled="user.name"
+              :disabled="!!user.name"
               >
               <i class="el-icon-loading" v-if="settingPage.generatingLoginPage"></i>
               Login With Tumblr
             </el-button>
-            <div class="logged-in" v-if="user.name">{{ user.name }}</div>
+            <div class="logged-in" v-if="user.name">连接成功 用户：{{ user.name }}</div>
             <div class="error-info" v-if="settingPage.tumblrLoginError">{{ settingPage.tumblrLoginError }}</div>
           </el-form-item>
           <el-form-item label="API_KEY">

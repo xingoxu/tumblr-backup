@@ -240,7 +240,7 @@ new Promise((resolve, reject) => {
             this.user.name = null;
             return;
           }
-          this.user.name = body.response.name;
+          this.user.name = body.response.user.name;
         });
       }
     }
