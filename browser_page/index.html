@@ -6,15 +6,65 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>Tumblr Backup</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" type="text/css" media="screen" href="css/main.css" />
   <link rel="stylesheet" type="text/css" media="screen" href="css/element.css" />
+  <link rel="stylesheet" type="text/css" media="screen" href="css/main.css" />
 </head>
 
 <body>
   <div id="app">
-    <el-tabs v-model="activeTab" @tab-click="handleTabClick">
+    <el-tabs v-model="activeTab" >
       <el-tab-pane label="我的收藏" name="favouriteDownload">
-        
+        <div class="not-login" v-if="!user.name">
+          <div>你还没有连接 Tumblr 账号，没法显示自己的收藏哦。</div>
+          <el-button
+            class="tumblr-login-button"
+            type="primary"
+            @click="activeTab = 'settings'"
+            :disabled="!!user.name"
+            >
+            <i class="el-icon-loading" ></i>
+            Login With Tumblr
+          </el-button>
+        </div>
+        <div>
+          <div
+            style="min-height: 400px;
+            text-align: center;
+            margin-top: 5px;
+            font-size: 0;
+            padding-bottom: 70px;" v-loading="favouriteDownload.gettingFavouriteDownloadImages">
+
+            <div
+              v-for="img in favouriteDownload.favouriteImages" class="userDownloadPicItems"
+              :class="{ 'checked': img.checked }">
+              <img :src="img.thumbnail" />
+              <div class="summary" @click="img.checked = !img.checked">
+                <div v-if="img.summary && img.summary!= ''"><span>{{ img.summary }}</span></div>
+                <div><a :href="img.post_url" target="_blank">{{ img.date }}</a></div>
+              </div>
+              <div class="checkbox">
+                <el-checkbox v-model="img.checked"></el-checkbox>
+              </div>
+            </div>
+            <div style="margin-top: 7px;">
+                <el-button type="primary" v-if="favouriteDownload.nextPage" @click="getFavouriteDownloadNextPage">加载更多</el-button>
+            </div>
+          </div>
+
+          <div class="bottom"     
+            v-if="favouriteDownload.favouriteImages.length > 0">
+            <el-checkbox
+              :disabled="favouriteDownload.downloadAll"
+              :value="favouriteDownloadAllChecked" 
+              @input="favouriteDownloadCheckAll">当前全选</el-checkbox>
+            <el-checkbox 
+              v-model="favouriteDownload.downloadAll">下载所有收藏</el-checkbox>
+            <el-button
+              style="float:right;"
+              @click="downloadFavouriteDownload"
+              type="primary">下载</el-button>
+          </div>
+        </div>
       </el-tab-pane>
       <el-tab-pane label="用户下载" name="userDownload">
         <div>
@@ -37,7 +87,7 @@
             font-size: 0;
             padding-bottom: 70px;" v-loading="userDownload.gettingUserDownloadImages">
             <div v-for="img in userDownload.userImages" class="userDownloadPicItems" :class="{ 'checked': img.checked }">
-              <img :src="img.src" />
+              <img :src="img.thumbnail" />
               <div class="summary" @click="img.checked = !img.checked">
                 <div v-if="img.summary && img.summary!= ''"><span>{{ img.summary }}</span></div>
                 <div><a :href="img.post_url" target="_blank">{{ img.date }}</a></div>
@@ -54,12 +104,14 @@
           <div class="bottom"     
             v-if="userDownload.userImages.length > 0">
             <el-checkbox
+              :disabled="userDownload.downloadAll"
               :value="userDownloadAllChecked" 
               @input="userDownloadCheckAll">当前全选</el-checkbox>
             <el-checkbox 
               v-model="userDownload.downloadAll">下载该博客所有{{ userDownload.userDownloadTypeSelectOptions[userDownload.userDownloadTypeSelect] }}</el-checkbox>
             <el-button
               style="float:right;"
+              @click="downloadUserDownload"
               type="primary">下载</el-button>
           </div>
         </div>
@@ -68,7 +120,7 @@
 
       </el-tab-pane>
       <el-tab-pane label="设置" name="settings">
-        <el-form label-width="80px" style="margin: 0 10px;">
+        <el-form label-width="80px" style="margin: 0 20px;">
           <el-form-item label="下载路径">
             <el-input :disabled="true" v-model="settings.savePath" >
               <el-button slot="append" icon="el-icon-more-outline
@@ -85,7 +137,10 @@
               <i class="el-icon-loading" v-if="settingPage.generatingLoginPage"></i>
               Login With Tumblr
             </el-button>
-            <div class="logged-in" v-if="user.name">连接成功 用户：{{ user.name }}</div>
+            <span
+              class="logged-in"
+              v-if="user.name"
+              style="margin-left: 20px;">连接成功 用户：{{ user.name }}</span>
             <div class="error-info" v-if="settingPage.tumblrLoginError">{{ settingPage.tumblrLoginError }}</div>
           </el-form-item>
           <el-form-item label="API_KEY">
@@ -113,6 +168,9 @@
     </el-tabs>
   </div>
   <script src="js/vue.js"></script>
+  <script>
+    window.jQuery = window.$ = require('./js/jquery-3.3.1.js');
+  </script>
   <script src="js/element.js"></script>
   <script src="js/index.js"></script>
 </body>

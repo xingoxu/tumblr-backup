@@ -13,6 +13,17 @@ a {
   color: inherit;
 }
 
+.el-tabs__header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  background: #FFF;
+}
+.el-tabs__content {
+  padding-top: 49px;
+}
 .el-tabs__nav.is-top {
   transform: translateX(20px) !important;
 }
@@ -89,7 +100,7 @@ a {
   opacity: 1;
 }
 
-#pane-userDownload .bottom {
+#pane-favouriteDownload .bottom, #pane-userDownload .bottom {
   position: fixed;
   bottom: 0;
   left: 0;
@@ -105,13 +116,22 @@ a {
   background: #36465d;
   border-color: #36465d;
 }
-
-.el-button.tumblr-login-button:hover,.el-button.tumblr-login-button:focus  {
-  background: #50688a;
-  border-color: #50688a;
-}
-
 .el-button.tumblr-login-button:active {
   background: #242f3f;
   border-color: #242f3f;
+}
+
+.el-button--primary.is-disabled, .el-button.tumblr-login-button:hover,.el-button.tumblr-login-button:focus  {
+  background: #6c8dbb;
+  border-color: #6c8dbb;
+}
+
+#pane-favouriteDownload .not-login {
+  text-align: center;
+  font-size: 14px;
+  padding: 100px 0;
+}
+
+#pane-favouriteDownload .not-login div {
+  margin-bottom: 50px;
 }
