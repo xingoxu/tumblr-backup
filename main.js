@@ -1,10 +1,28 @@
 const { app, BrowserWindow } = require('electron');
-
+const url = require('url');
+const qs = require('querystring');
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let win
 
+const http = require('http');
+
+const server = http.createServer(function (request, response) {
+
+  response.writeHead(200, { 'Content-Type': 'text/plain' });
+
+  response.end(`
+    We have received the tumblr user info. Now you can close this page.
+    成功获得用户信息，现在你可以关闭此页面。
+    ユーザー情報取得しました、このページを閉じても大丈夫です。
+  `);
+  let search = url.parse(request.url).search;
+  if (!search) return;
+  win.webContents.send('loginCallback',qs.parse(search));
+});
+
 function createWindow () {
+  server.listen(23285);
   // Create the browser window.
   win = new BrowserWindow({ width: 800, height: 600 })
 
@@ -20,6 +38,7 @@ function createWindow () {
     // in an array if your app supports multi windows, this is the time
     // when you should delete the corresponding element.
     win = null
+    server.close();
   })
 }
 

@@ -68,18 +68,47 @@
 
       </el-tab-pane>
       <el-tab-pane label="设置" name="settings">
-        <el-form label-width="80px">
+        <el-form label-width="80px" style="margin: 0 10px;">
           <el-form-item label="下载路径">
             <el-input :disabled="true" v-model="settings.savePath" >
               <el-button slot="append" icon="el-icon-more-outline
               " @click="showSaveDialog"></el-button>
             </el-input>
           </el-form-item>
+          <el-form-item label="连接账号">
+            <el-button
+              class="tumblr-login-button"
+              type="primary"
+              @click="generateLoginPage"
+              :disabled="user.name"
+              >
+              <i class="el-icon-loading" v-if="generatingLoginPage"></i>
+              Login With Tumblr
+            </el-button>
+            <div class="logged-in" v-if="user.name">{{ user.name }}</div>
+            <div class="error-info" v-if="settingPage.tumblrLoginError">{{ settingPage.tumblrLoginError }}</div>
+          </el-form-item>
+          <el-form-item label="API_KEY">
+            <el-input v-model="settings.API_KEY" >
+              <template slot="append">
+                <a href="javascript:;"><i class="el-icon-question"></i></a>
+              </template>
+            </el-input>
+          </el-form-item>
+          <el-form-item label="API_Secret">
+            <el-input v-model="settings.API_Secret" >
+              <template slot="append">
+                <a href="javascript:;"><i class="el-icon-question"></i></a>
+              </template>
+            </el-input>
+          </el-form-item>
           <el-form-item>
-            <el-button type="primary" >保存</el-button>
+            <el-button type="primary" @click="saveSettings">保存</el-button>
             
           </el-form-item>
         </el-form>
+      </el-tab-pane>
+      <el-tab-pane label="日志" name="logs">
       </el-tab-pane>
     </el-tabs>
   </div>
