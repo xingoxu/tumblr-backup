@@ -5,8 +5,9 @@ const { shell, ipcRenderer } = require('electron');
 const qs = require('querystring');
 const fs = require('fs');
 const path = require('path');
-
-console._log = console.log;
+const util = require('util');
+const pLimit = require('p-limit');
+const limit = pLimit(50);
 
 new Promise((resolve, reject) => {
   storage.getMany(['user', 'settings', 'firstRun'], function (err, data) {
@@ -23,6 +24,7 @@ new Promise((resolve, reject) => {
     data() {
       return {
         activeTab: firstRun.isFirstRun === false ? 'userDownload' : 'settings',
+        showDonate: false,
         user: Object.assign({
           key: null,
           secret: null,
@@ -57,6 +59,7 @@ new Promise((resolve, reject) => {
         },
         downloadManager: {
           downloadQueue: [],
+          pageIndex: 1,
         },
         followingUser: {
           userFollowing: [],
@@ -72,7 +75,11 @@ new Promise((resolve, reject) => {
       },
       favouriteDownloadAllChecked() {
         return this.favouriteDownload.favouriteImages.length > 0 && this.favouriteDownload.favouriteImages.every(img => img.checked);
-      }
+      },
+      showDownloadQueue() {
+        let pageIndex = this.downloadManager.pageIndex;
+        return this.downloadManager.downloadQueue.slice((pageIndex - 1) * 200, pageIndex * 200 - 1);
+      },
     },
     created() {
       ipcRenderer.on('loginCallback', (event, data) => {
@@ -83,23 +90,23 @@ new Promise((resolve, reject) => {
       }
       var logger = document.getElementById('log');
       let that = this;
-      console.log = function () {
-        let messages = [].slice.call(arguments);
-        let html = messages.reduce((prev, current) => {
-          let html = '';
-          if (current instanceof Error) {
-            html = current.stack;
-          }
-          else if (typeof current == 'object') {
-            html = (JSON && JSON.stringify ? JSON.stringify(current) : current);
-          } else {
-            html = current;
-          }
-          return prev + '  ' + html
-        }, '');
-        that.$refs.consoleDiv.innerText += new Date().toLocaleString() + html + '\n';
-        console._log(...messages);
-      }
+      // console.log = function () {
+      //   let messages = [].slice.call(arguments);
+      //   let html = messages.reduce((prev, current) => {
+      //     let html = '';
+      //     if (current instanceof Error) {
+      //       html = current.stack;
+      //     }
+      //     else if (typeof current == 'object') {
+      //       html = (JSON && JSON.stringify ? JSON.stringify(current) : current);
+      //     } else {
+      //       html = current;
+      //     }
+      //     return prev + '  ' + html
+      //   }, '');
+      //   that.$refs.consoleDiv.innerText += new Date().toLocaleString() + html + '\n';
+      //   console._log(...messages);
+      // }
     },
     methods: {
       getAuthObject() {
@@ -279,7 +286,7 @@ new Promise((resolve, reject) => {
           return;
         }
         this.userDownload.userDownloadLoadingDialog = false;
-        downloadItem.forEach(this.addDownloadQueue);
+        downloadItem.map(item => limit(() => this.addDownloadQueue(item)));
       },
       async getUserDownloadItem(userId) {
         if (this.userDownload.downloadAll) {
@@ -335,6 +342,9 @@ new Promise((resolve, reject) => {
           this.generatingLoginPage = false;
         });
       },
+      openLinkExternal(url) {
+        shell.openExternal(url);
+      },
       loginCallback(auth_data) {
         try {
           let { oauth_token, oauth_verifier } = auth_data;
@@ -368,6 +378,7 @@ new Promise((resolve, reject) => {
             secret: this.user.secret
           }, error => {
             // error handle
+            this.$refs.consoleDiv.innerText += (error.stack + '\n');
             console.log(error);
           });
         })
@@ -424,7 +435,6 @@ new Promise((resolve, reject) => {
               reject(error);
               return;
             }
-            console.log(body);
             if (body.errors) {
               // error
               reject(body.errors);
@@ -449,7 +459,7 @@ new Promise((resolve, reject) => {
           return;
         }
         this.favouriteDownload.favouriteDownloadLoadingDialog = false;
-        downloadItem.forEach(this.addDownloadQueue);
+        downloadItem.map(item => limit(() => this.addDownloadQueue(item)));
       },
       async getFavouriteDownloadItem() {
         let downloadItem = [];
@@ -490,20 +500,31 @@ new Promise((resolve, reject) => {
           add_time: (new Date()).toLocaleString(),
           status: 'downloading'
         };
-        this._download(item);
         this.downloadManager.downloadQueue.push(item);
+        return this._download(item);
       },
       _download(downloadItem) {
         let { folder, src } = downloadItem;
+        let downloadPath = this.settings.savePath;
+        try {
+          fs.accessSync(`${downloadPath}/${folder}`, fs.constants.F_OK | fs.constants.W_OK);
+        } catch (error) {
+          if (error.code == 'ENOENT') {
+            try {
+              fs.mkdirSync(`${downloadPath}/${folder}`, { recursive: true });
+            } catch (e) {
+              return Promise.reject(e);
+            }
+          } else {
+            return Promise.reject(error);
+          }
+        }
         return new Promise((resolve, reject) => {
-          let downloadPath = this.settings.savePath;
-          if (!fs.existsSync(`${downloadPath}/${folder}`))
-            mkdirsSync(`${downloadPath}/${folder}`);
           request.get(src).on('error', reject).pipe(fs.createWriteStream(`${downloadPath}/${folder}/${this.getFileName(src)}`)).on('close', resolve).on('error', reject);
         }).then(() => {
           downloadItem.status = 'completed';
         }).catch(e => {
-          console.log('error in download',e);
+          console.log('error in download', e);
           downloadItem.status = 'error';
         });
       },
@@ -520,6 +541,7 @@ new Promise((resolve, reject) => {
       },
       removeDownloaded() {
         this.downloadManager.downloadQueue = this.downloadManager.downloadQueue.filter(item => item.status != 'completed');
+        this.downloadManager.pageIndex = 1;
       },
       getFollowingUser() {
         this.followingUser.gettingFollowing = true;
@@ -578,8 +600,7 @@ new Promise((resolve, reject) => {
             e.user_name = user.name;
             return Promise.reject(e);
           }).then(downloadItem => {
-            // console.log('downloadItem', downloadItem);
-            downloadItem.forEach(this.addDownloadQueue);
+            downloadItem.map(item => limit(() => this.addDownloadQueue(item)));
           }).catch(err => {
             this.followingUser.followingUserLoadingDialog = false;
             if (err.user_name) {
@@ -605,15 +626,3 @@ new Promise((resolve, reject) => {
     },
   });
 });
-
-
-function mkdirsSync(dirname) {
-  if (fs.existsSync(dirname)) {
-    return true;
-  } else {
-    if (mkdirsSync(path.dirname(dirname))) {
-      fs.mkdirSync(dirname);
-      return true;
-    }
-  }
-}

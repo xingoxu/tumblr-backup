@@ -10,7 +10,8 @@
   "author": "xingo",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^3.0.10"
+    "electron": "^3.0.10",
+    "p-limit": "^2.0.0"
   },
   "dependencies": {
     "electron-json-storage": "^4.1.5",
