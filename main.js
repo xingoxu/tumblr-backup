@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, Menu, MenuItem } = require('electron');
 const url = require('url');
 const qs = require('querystring');
 // Keep a global reference of the window object, if you don't, the window will
@@ -23,6 +23,29 @@ const server = http.createServer(function (request, response) {
 
 function createWindow () {
   server.listen(23285);
+  if (process.platform === 'darwin') {
+    const template = [
+      {
+        label: "Application",
+        submenu: [
+          { label: "Quit", accelerator: "Command+Q", click: function () { app.quit(); } }
+        ]
+      },
+      {
+        label: "Edit",
+        submenu: [
+          { role: 'undo' },
+          { role: 'redo' },
+          { role: 'cut' },
+          { role: 'copy' },
+          { role: 'paste' },
+          { role: 'delete' },
+          { role: 'selectall' }
+        ]
+      }
+    ];
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+  }
   // Create the browser window.
   win = new BrowserWindow({ width: 800, height: 600 })
 
