@@ -4,18 +4,32 @@
   "description": "backup tumblr",
   "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron ."
+    "start": "electron .",
+    "pack": "build --dir",
+    "dist": "build"
   },
   "author": "xingo",
   "license": "MIT",
   "devDependencies": {
     "electron": "^3.0.10",
-    "p-limit": "^2.0.0"
+    "electron-builder": "^20.38.2"
   },
   "dependencies": {
     "electron-json-storage": "^4.1.5",
     "querystring": "^0.2.0",
-    "request": "^2.88.0"
+    "request": "^2.88.0",
+    "p-limit": "^2.0.0"
+  },
+  "build": {
+    "appId": "com.xingoxu.tumblrbackup",
+    "mac": {
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "target": [
+        "7z",
+        "nsis"
+      ]
+    }
   }
 }
