@@ -12,7 +12,10 @@
 
 <body>
   <div id="app">
-    <el-tabs v-model="activeTab" >
+    <div 
+      style="line-height: 100vh; text-align: center"
+      v-if="false">Loading...<br /></div>
+    <el-tabs v-model="activeTab" :class="['active-' + activeTab]">
       <el-tab-pane label="我的收藏" name="favouriteDownload">
         <div class="not-login" v-if="!user.name">
           <div>你还没有连接 Tumblr 账号，没法显示自己的收藏哦。</div>
@@ -22,7 +25,6 @@
             @click="activeTab = 'settings'"
             :disabled="!!user.name"
             >
-            <i class="el-icon-loading" ></i>
             Login With Tumblr
           </el-button>
         </div>
@@ -32,7 +34,7 @@
             text-align: center;
             margin-top: 5px;
             font-size: 0;
-            padding-bottom: 70px;" v-loading="favouriteDownload.gettingFavouriteDownloadImages">
+            padding-bottom: 70px;" v-loading.fullscreen.lock="favouriteDownload.gettingFavouriteDownloadImages">
 
             <div
               v-for="img in favouriteDownload.favouriteImages" class="userDownloadPicItems"
@@ -64,20 +66,40 @@
               @click="downloadFavouriteDownload"
               type="primary">下载</el-button>
           </div>
+
+          <el-dialog
+            :title="'分析下载信息中'"
+            :visible.sync="favouriteDownload.favouriteDownloadLoadingDialog"
+            :close-on-click-modal="false"
+            :close-on-press-escape="false"
+            :show-close="false"
+            width="500px">
+            <span>
+              <i class="el-icon-loading"></i>
+              <span>{{ favouriteDownload.downloadAllLoadingText }}</span>
+            </span>
+          </el-dialog>
         </div>
       </el-tab-pane>
       <el-tab-pane label="用户下载" name="userDownload">
-        <div>
-          <div style="margin: 0 10px;">
-            <el-input placeholder="(https://)?*(.tumblr.com)?" v-model="userDownload.userDownloadUrlInput">
-              <el-select v-model="userDownload.userDownloadTypeSelect" slot="prepend" placeholder="请选择" style="width: 100px">
-                <el-option v-for="(label, key) in userDownload.userDownloadTypeSelectOptions" :key="key" :label="label" :value="key"></el-option>
-              </el-select>
+        <div style="padding-top: 50px;">
+          <div style="
+            background:#FFF;
+            padding: 0px 10px;
+            left: 0;
+            right: 0;
+            position: fixed;
+            padding: 10px 0;
+            margin-top: -60px;
+            z-index: 1;
+            box-shadow: 0 3px 3px 0 rgba(0,0,0,0.14), 0 1px 1px 0 rgba(0,0,0,0.12)">
+            <el-input placeholder="(https://)?*(.tumblr.com)?"
+              v-model="userDownload.userDownloadUrlInput"
+              @keyup.enter.native="getUserPics">
               <el-button slot="append" 
                 @click="getUserPics"
                 icon="el-icon-search"></el-button>
             </el-input>
-            
           </div>
 
           <div style="
@@ -85,7 +107,7 @@
             text-align: center;
             margin-top: 5px;
             font-size: 0;
-            padding-bottom: 70px;" v-loading="userDownload.gettingUserDownloadImages">
+            padding-bottom: 70px;" v-loading.fullscreen.lock="userDownload.gettingUserDownloadImages">
             <div v-for="img in userDownload.userImages" class="userDownloadPicItems" :class="{ 'checked': img.checked }">
               <img :src="img.thumbnail" />
               <div class="summary" @click="img.checked = !img.checked">
@@ -108,16 +130,135 @@
               :value="userDownloadAllChecked" 
               @input="userDownloadCheckAll">当前全选</el-checkbox>
             <el-checkbox 
-              v-model="userDownload.downloadAll">下载该博客所有{{ userDownload.userDownloadTypeSelectOptions[userDownload.userDownloadTypeSelect] }}</el-checkbox>
+              v-model="userDownload.downloadAll">
+
+            </el-checkbox>
             <el-button
               style="float:right;"
               @click="downloadUserDownload"
               type="primary">下载</el-button>
           </div>
+
+          <el-dialog
+            :title="'分析下载信息中'"
+            :visible.sync="userDownload.userDownloadLoadingDialog"
+            :close-on-click-modal="false"
+            :close-on-press-escape="false"
+            :show-close="false"
+            width="500px">
+            <span>
+              <i class="el-icon-loading"></i>
+              <span>{{ userDownload.downloadAllLoadingText }}</span>
+            </span>
+          </el-dialog>
         </div>
       </el-tab-pane>
       <el-tab-pane label="下载管理" name="downloadManager">
+        <div>
+          <div v-for="(item, index) in downloadManager.downloadQueue" :key="item.key" class="download-item">
+            <template>
+              <i class="el-icon-check" v-if="item.status == 'completed'"></i>
+              <i class="el-icon-warning" v-if="item.status == 'error'"></i>
+              <i class="el-icon-download" v-if="item.status == 'downloading'"></i>
+            </template>
+            <div style="margin-left: 45px">
+              <div class="title">{{ item.folder }} - {{ getFileName(item.src) }}</div>
+              <div class="summary">
+                <span class="time">{{ item.add_time }}</span>
+                &nbsp;&nbsp;
+                <span :class="item.status">{{ item.status }}</span>
+                &nbsp;&nbsp;
+                <a :href="item.post_url">原帖地址</a>
+                &nbsp;&nbsp;
+                <a :href="item.src">原图地址</a>
+                &nbsp;&nbsp;
+                <a href="javascript:;" 
+                  @click="downloadManager.downloadQueue.splice(index, 1)"
+                  v-if="item.status != 'downloading'">删除此任务</a>
+              </div>
+            </div>
+          </div>
+          <div 
+            v-if="downloadManager.downloadQueue.length == 0"
+            style="font-size: 14px;
+            text-align: center;
+            line-height: 100px;">
+            这里暂时空空如也。
+          </div>
 
+          <div class="bottom"     
+            v-if="downloadManager.downloadQueue.length > 0">
+            <el-button
+              style="float:right;"
+              @click="removeDownloaded"
+              type="primary">清空已完成</el-button>
+          </div>
+        </div>
+      </el-tab-pane>
+      <el-tab-pane label="我关注的" name="followingUser">
+        <div class="not-login" v-if="!user.name">
+          <div>你还没有连接 Tumblr 账号，没法显示自己的关注哦。</div>
+          <el-button
+            class="tumblr-login-button"
+            type="primary"
+            @click="activeTab = 'settings'"
+            :disabled="!!user.name"
+            >
+            Login With Tumblr
+          </el-button>
+        </div>
+        <div
+          v-else
+          style="padding-bottom: 70px;" 
+          v-loading.fullscreen.lock="followingUser.gettingFollowing">
+          <div v-for="(user, index) in followingUser.userFollowing" :key="user.key" class="user">
+            <div>
+              <el-button
+                class="tumblr-login-button"
+                style="float:right;"
+                type="primary"
+                @click="activeTab = 'userDownload', userDownload.userDownloadUrlInput = user.name, getUserPics()"
+                >
+                备份他的博客
+              </el-button>
+              <div class="title">{{ user.title }}</div>
+              <div class="summary">
+                <a :href="user.url">{{ user.url }}</a>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: 7px; text-align: center;" v-if="followingUser.nextPage">
+              <el-button type="primary" @click="getFollowingUserNextPage">加载更多</el-button>
+          </div>
+
+          <div 
+            v-if="followingUser.userFollowing.length == 0"
+            style="font-size: 14px;
+            text-align: center;
+            line-height: 100px;">
+            暂无关注
+          </div>
+
+          <!-- <div class="bottom"
+            v-if="followingUser.userFollowing.length > 0">
+            <el-button
+              style="float:right;"
+              @click="downloadUser(followingUser.userFollowing)"
+              type="primary">下载全部已关注人的图片及视频</el-button>
+          </div> -->
+          <el-dialog
+            :title="'分析下载信息中'"
+            :visible.sync="followingUser.followingUserLoadingDialog"
+            :close-on-click-modal="false"
+            :close-on-press-escape="false"
+            :show-close="false"
+            width="500px">
+            <span>
+              <i class="el-icon-loading"></i>
+              <span>{{ userDownload.downloadAllLoadingText }}</span>
+            </span>
+          </el-dialog>
+        </div>
       </el-tab-pane>
       <el-tab-pane label="设置" name="settings">
         <el-form label-width="80px" style="margin: 0 20px;">
@@ -143,6 +284,18 @@
               style="margin-left: 20px;">连接成功 用户：{{ user.name }}</span>
             <div class="error-info" v-if="settingPage.tumblrLoginError">{{ settingPage.tumblrLoginError }}</div>
           </el-form-item>
+          <el-form-item label="语言">
+            <el-input :disabled="true" v-model="settings.savePath" >
+            </el-input>
+            <!-- <el-select v-model="value" placeholder="请选择">
+              <el-option
+                v-for="item in options"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value">
+              </el-option>
+            </el-select> -->
+          </el-form-item>
           <el-form-item label="API_KEY">
             <el-input v-model="settings.API_KEY" >
               <template slot="append">
@@ -157,13 +310,20 @@
               </template>
             </el-input>
           </el-form-item>
+          <el-form-item label="注意">
+            Tumblr 官方限定每小时只能发送1000次请求，每日只能发送5000次请求，因此，每小时只能备份最多 20000 份 tumblr 贴，否则可能会被限制使用。
+            超过 20000 份帖子的汤博主无法使用一次下载所有图片的备份方式，善用选择下载。
+            请活用更换API_KEY与API_Secret来进行备份。
+          </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="saveSettings">保存</el-button>
-            
           </el-form-item>
         </el-form>
       </el-tab-pane>
       <el-tab-pane label="日志" name="logs">
+        <code 
+          style="    white-space: pre-line;"
+          ref="consoleDiv"></code>
       </el-tab-pane>
     </el-tabs>
   </div>

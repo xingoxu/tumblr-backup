@@ -3,8 +3,10 @@ const storage = require('electron-json-storage');
 const { app } = require('electron').remote;
 const { shell, ipcRenderer } = require('electron');
 const qs = require('querystring');
+const fs = require('fs');
+const path = require('path');
 
-
+console._log = console.log;
 
 new Promise((resolve, reject) => {
   storage.getMany(['user', 'settings', 'firstRun'], function (err, data) {
@@ -16,7 +18,7 @@ new Promise((resolve, reject) => {
   });
 }).then(({ user, settings, firstRun }) => {
   storage.set('firstRun', { isFirstRun: false });
-  new Vue({
+  window.v = new Vue({
     el: '#app',
     data() {
       return {
@@ -31,18 +33,17 @@ new Promise((resolve, reject) => {
           favouriteImages: [],
           downloadAll: false,
           nextPage: false,
+          downloadAllLoadingText: '',
+          favouriteDownloadLoadingDialog: false,
         },
         userDownload: {
           userDownloadUrlInput: '',
           gettingUserDownloadImages: false,
           userImages: [],
-          userDownloadTypeSelectOptions: {
-            'photo': '图片',
-            'video': '影片'
-          },
-          userDownloadTypeSelect: 'photo',
           downloadAll: false,
           nextPage: false,
+          downloadAllLoadingText: '',
+          userDownloadLoadingDialog: false,
         },
         settings: Object.assign({
           savePath: app.getPath('desktop'),
@@ -53,6 +54,15 @@ new Promise((resolve, reject) => {
           generatingLoginPage: false,
           tumblrLoginError: null,
           auth_request: {},
+        },
+        downloadManager: {
+          downloadQueue: [],
+        },
+        followingUser: {
+          userFollowing: [],
+          nextPage: false,
+          gettingFollowing: false,
+          followingUserLoadingDialog: false,
         },
       }
     },
@@ -70,6 +80,25 @@ new Promise((resolve, reject) => {
       });
       if (this.user.key) {
         this.getUserInfo();
+      }
+      var logger = document.getElementById('log');
+      let that = this;
+      console.log = function () {
+        let messages = [].slice.call(arguments);
+        let html = messages.reduce((prev, current) => {
+          let html = '';
+          if (current instanceof Error) {
+            html = current.stack;
+          }
+          else if (typeof current == 'object') {
+            html = (JSON && JSON.stringify ? JSON.stringify(current) : current);
+          } else {
+            html = current;
+          }
+          return prev + '  ' + html
+        }, '');
+        that.$refs.consoleDiv.innerText += new Date().toLocaleString() + html + '\n';
+        console._log(...messages);
       }
     },
     methods: {
@@ -89,7 +118,7 @@ new Promise((resolve, reject) => {
         }
       },
       getUserPics() {
-        let matchResult = this.userDownload.userDownloadUrlInput.match(/(^https?:\/\/)?(?<id>\w+)(\.tumblr\.com\/?)?$/i);
+        let matchResult = this.userDownload.userDownloadUrlInput.match(/(^https?:\/\/)?(?<id>[\w-]+)(\.tumblr\.com\/?)?$/i);
         let userId = '';
         if (matchResult && matchResult.groups.id) {
           userId = matchResult.groups.id;
@@ -100,7 +129,7 @@ new Promise((resolve, reject) => {
         }
         this.userDownload.gettingUserDownloadImages = true;
 
-        return this.fetchUserPics(`https://api.tumblr.com/v2/blog/${userId}.tumblr.com/posts/${this.userDownload.userDownloadTypeSelect}`).then(({ userImages, nextPage }) => {
+        return this.fetchUserPics(`https://api.tumblr.com/v2/blog/${userId}.tumblr.com/posts`).then(({ userImages, nextPage }) => {
           this.userDownload.userImages = userImages;
           this.userDownload.nextPage = nextPage;
         }).catch(error => {
@@ -114,7 +143,7 @@ new Promise((resolve, reject) => {
         return this.fetchUserPics(this.userDownload.nextPage).then(({ userImages, nextPage }) => {
           this.userDownload.userImages = this.userDownload.userImages.concat(userImages);
           this.userDownload.nextPage = nextPage;
-        }).catch(console.log).then(() => {
+        }).catch((err) => console.log('getUserPicsNextPage',err)).then(() => {
           this.userDownload.gettingUserDownloadImages = false;
         });
       },
@@ -130,12 +159,18 @@ new Promise((resolve, reject) => {
               reject(error);
               return;
             }
-            if (body.errors) {
+            if (body.errors || body.meta.status != 200) {
               // error
-              reject(body.errors);
+              reject(body.errors || body.meta.msg);
               return;
             }
-            console.log(body);
+            if (body.response.total_posts > 20000) {
+              this.$notify.error({
+                title: '错误',
+                message: '由于Tumblr官方API限制，暂不支持20000条以上博客的备份，请使用用户下载进行备份（每小时1000次）'
+              });
+              reject('Total Posts is too many to download because of the rate limit of Tumblr official');
+            }
 
             resolve({
               userImages: this.getDownloadItems(body.response.posts),
@@ -152,6 +187,7 @@ new Promise((resolve, reject) => {
               post.photos.forEach((photo, index) => {
                 downloadItems.push({
                   thumbnail: photo.original_size.url,
+                  folder: post.blog_name,
                   src: photo.original_size.url,
                   summary: post.summary,
                   date: post.date,
@@ -166,43 +202,57 @@ new Promise((resolve, reject) => {
               downloadItems.push({
                 thumbnail: post.thumbnail_url,
                 src: post.video_url,
+                folder: post.blog_name,
                 summary: post.summary,
                 date: post.date,
                 post_url: post.post_url,
                 key: `${post.reblog_key}`,
                 checked: false,
               });
+              break;
             }
             case 'text': {
-              let $nodes = $($.parseHTML(post.body));
-              let imgSet = [].slice.call($nodes.find('img'));
-
-              imgSet.forEach((img, index) => {
-                let src = img.src.replace('_540', '_1280');
-                downloadItems.push({
-                  thumbnail: src,
-                  src: src,
-                  summary: '',
-                  date: post.date,
-                  post_url: post.post_url,
-                  key: `${post.reblog_key}_img_${index}`,
-                  checked: false,
-                });
-              });
-
-              let videoSet = [].slice.call($nodes.find('video'));
-              videoSet.forEach((video, index) => {
-                downloadItems.push({
-                  thumbnail: video.poster,
-                  src: video.currentSrc,
-                  summary: '',
-                  date: post.date,
-                  post_url: post.post_url,
-                  key: `${post.reblog_key}_video_${index}`,
-                  checked: false,
-                });
-              })
+              let items = processText(post.body, 'text');
+              downloadItems = downloadItems.concat(items);
+              break;
             }
+          }
+          if (post.reblog && post.reblog.comment) {
+            downloadItems = downloadItems.concat(processText(post.reblog.comment, 'reblog'));
+          }
+          function processText(text, identifier) {
+            let items = [];
+            let $nodes = $($.parseHTML(text));
+            let imgSet = [].slice.call($nodes.find('img'));
+
+            imgSet.forEach((img, index) => {
+              let src = img.src.replace('_540', '_1280');
+              items.push({
+                thumbnail: src,
+                folder: post.blog_name,
+                src: src,
+                summary: '',
+                date: post.date,
+                post_url: post.post_url,
+                key: `${post.reblog_key}_img_${index}_${identifier}`,
+                checked: false,
+              });
+            });
+
+            let videoSet = [].slice.call($nodes.find('video'));
+            videoSet.forEach((video, index) => {
+              items.push({
+                thumbnail: video.poster,
+                folder: post.blog_name,
+                src: video.currentSrc,
+                summary: '',
+                date: post.date,
+                post_url: post.post_url,
+                key: `${post.reblog_key}_video_${index}_${identifier}`,
+                checked: false,
+              });
+            });
+            return items;
           }
 
         });
@@ -218,19 +268,38 @@ new Promise((resolve, reject) => {
         this.userDownload.userImages.forEach(img => (img.checked = $event));
       },
       async downloadUserDownload() {
-        let downloadItem = [];
+        let downloadItem;
+        this.userDownload.userDownloadLoadingDialog = true;
+        try {
+          let userId = this.userDownload.userImages[0].folder;
+          downloadItem = await this.getUserDownloadItem(userId);
+        } catch (e) {
+          console.log(e, this.userDownload.downloadAllLoadingText);
+          this.userDownload.userDownloadLoadingDialog = false;
+          return;
+        }
+        this.userDownload.userDownloadLoadingDialog = false;
+        downloadItem.forEach(this.addDownloadQueue);
+      },
+      async getUserDownloadItem(userId) {
         if (this.userDownload.downloadAll) {
-          let { userImages, nextPage } = await this.fetchUserPics(`https://api.tumblr.com/v2/blog/${userId}.tumblr.com/posts/${this.userDownload.userDownloadTypeSelect}`);
-          downloadItem = userImages;
-          while (nextPage != false) {
-            let { userImages: a, nextPage: b } = await this.fetchUserPics(nextPage);
-            downloadItem = downloadItem.concat(a);
-            nextPage = b;
-          }
+          downloadItem = await this.fetchUserDownloadItem(userId);
         } else {
           downloadItem = this.userDownload.userImages.filter(value => value.checked);
         }
-        console.log(downloadItem);
+        return downloadItem;
+      },
+      async fetchUserDownloadItem(userId) {
+        let downloadItem = [];
+        let { userImages, nextPage } = await this.fetchUserPics(`https://api.tumblr.com/v2/blog/${userId}.tumblr.com/posts`);
+        downloadItem = userImages;
+        while (nextPage != false) {
+          this.userDownload.downloadAllLoadingText = nextPage;
+          let { userImages: a, nextPage: b } = await this.fetchUserPics(nextPage);
+          downloadItem = downloadItem.concat(a);
+          nextPage = b;
+        }
+        return downloadItem;
       },
       favouriteDownloadCheckAll($event) {
         this.favouriteDownload.favouriteImages.forEach(img => (img.checked = $event));
@@ -238,7 +307,7 @@ new Promise((resolve, reject) => {
       showSaveDialog() {
         let { dialog, getCurrentWindow } = require('electron').remote;
         dialog.showOpenDialog(getCurrentWindow(), {
-          properties: ['openDirectory']
+          properties: ['openDirectory', 'createDirectory']
         }, path => {
           if (!path) return;
           this.settings.savePath = path[0];
@@ -254,7 +323,10 @@ new Promise((resolve, reject) => {
         this.generatingLoginPage = true;
         request.post({
           url: 'https://www.tumblr.com/oauth/request_token',
-          oauth: this.getAuthObject()
+          oauth: {
+            consumer_key: this.settings.API_KEY,
+            consumer_secret: this.settings.API_Secret
+          }
         }, (e, r, body) => {
           let auth_request = qs.parse(body);
           let redirect_url = `https://www.tumblr.com/oauth/authorize?${qs.stringify({ oauth_token: auth_request.oauth_token })}`;
@@ -367,11 +439,25 @@ new Promise((resolve, reject) => {
         });
       },
       async downloadFavouriteDownload() {
+        let downloadItem
+        this.favouriteDownload.favouriteDownloadLoadingDialog = true;
+        try {
+          downloadItem = await this.getFavouriteDownloadItem();
+        } catch (e) {
+          console.log(this.favouriteDownload.downloadAllLoadingText, e);
+          this.favouriteDownload.favouriteDownloadLoadingDialog = false;
+          return;
+        }
+        this.favouriteDownload.favouriteDownloadLoadingDialog = false;
+        downloadItem.forEach(this.addDownloadQueue);
+      },
+      async getFavouriteDownloadItem() {
         let downloadItem = [];
         if (this.favouriteDownload.downloadAll) {
           let { favouriteImages, nextPage } = await this.fetchFavouriteDownload(`https://api.tumblr.com/v2/user/likes`);
           downloadItem = favouriteImages;
           while (nextPage != false) {
+            this.favouriteDownload.downloadAllLoadingText = nextPage;
             let { favouriteImages: a, nextPage: b } = await this.fetchFavouriteDownload(nextPage);
             downloadItem = downloadItem.concat(a);
             nextPage = b;
@@ -379,7 +465,7 @@ new Promise((resolve, reject) => {
         } else {
           downloadItem = this.favouriteDownload.favouriteImages.filter(value => value.checked);
         }
-        console.log(downloadItem);
+        return downloadItem;
       },
       setNextPageFavouriteDownload(response) {
         if (response.liked_posts.length <= 0) {
@@ -387,13 +473,147 @@ new Promise((resolve, reject) => {
         }
         else return `https://api.tumblr.com${response._links.next.href}`;
       },
+      // thumbnail: photo.original_size.url,
+      // folder: post.blog_name,
+      // src: photo.original_size.url,
+      // summary: post.summary,
+      // date: post.date,
+      // post_url: post.post_url,
+      // key: `${post.reblog_key}_${index}`,
+      // checked: false,
+      addDownloadQueue({ folder, src, post_url, key }) {
+        let item = {
+          folder,
+          src,
+          post_url,
+          key,
+          add_time: (new Date()).toLocaleString(),
+          status: 'downloading'
+        };
+        this._download(item);
+        this.downloadManager.downloadQueue.push(item);
+      },
+      _download(downloadItem) {
+        let { folder, src } = downloadItem;
+        return new Promise((resolve, reject) => {
+          let downloadPath = this.settings.savePath;
+          if (!fs.existsSync(`${downloadPath}/${folder}`))
+            mkdirsSync(`${downloadPath}/${folder}`);
+          request.get(src).on('error', reject).pipe(fs.createWriteStream(`${downloadPath}/${folder}/${this.getFileName(src)}`)).on('close', resolve).on('error', reject);
+        }).then(() => {
+          downloadItem.status = 'completed';
+        }).catch(e => {
+          console.log('error in download',e);
+          downloadItem.status = 'error';
+        });
+      },
+      getFileName(url) {
+        const urlUtil = require('url');
+        let fileNameArray;
+        try {
+          fileNameArray = urlUtil.parse(url).pathname.split('/');
+        } catch (e) {
+          console.log('error in getFileName', url);
+          throw e;
+        }
+        return fileNameArray[fileNameArray.length - 1];
+      },
+      removeDownloaded() {
+        this.downloadManager.downloadQueue = this.downloadManager.downloadQueue.filter(item => item.status != 'completed');
+      },
+      getFollowingUser() {
+        this.followingUser.gettingFollowing = true;
+        this.fetchFollowingUser(`https://api.tumblr.com/v2/user/following`).then(({ users, nextPage }) => {
+          this.followingUser.userFollowing = users;
+          this.followingUser.nextPage = nextPage;
+        }).catch(err => console.log('getFollowingUser', err)).then(() => {
+          this.followingUser.gettingFollowing = false;
+        });
+      },
+      getFollowingUserNextPage() {
+        this.followingUser.gettingFollowing = true;
+        this.fetchFollowingUser(this.followingUser.nextPage).then(({ users, nextPage }) => {
+          this.followingUser.userFollowing = this.followingUser.userFollowing.concat(users);
+          this.followingUser.nextPage = nextPage;
+        }).catch(err => console.log('getFollowingUserNextPage', err)).then(() => {
+          this.followingUser.gettingFollowing = false;
+        });
+      },
+      fetchFollowingUser(url) {
+        return new Promise((resolve, reject) => {
+          request.get({
+            url,
+            oauth: this.getAuthObject(),
+            json: true
+          }, (error, response, body) => {
+            if (error) {
+              // error
+              reject(error);
+              return;
+            }
+            if (body.errors) {
+              // error
+              reject(body.errors);
+              return;
+            }
+            function setNextPage(response) {
+              if (response.blogs.length <= 0) {
+                return false;
+              }
+              else return `https://api.tumblr.com${response._links.next.href}`;
+            }
+            body.response.blogs.forEach(blog => (blog.checked = false));
+
+            resolve({
+              users: body.response.blogs,
+              nextPage: setNextPage(body.response)
+            });
+          });
+        });
+      },
+      downloadUser(users) {
+        this.followingUser.followingUserLoadingDialog = true;
+        Promise.all(users.map(user => {
+          return this.fetchUserDownloadItem(user.name).catch(e => {
+            e.user_name = user.name;
+            return Promise.reject(e);
+          }).then(downloadItem => {
+            // console.log('downloadItem', downloadItem);
+            downloadItem.forEach(this.addDownloadQueue);
+          }).catch(err => {
+            this.followingUser.followingUserLoadingDialog = false;
+            if (err.user_name) {
+              console.log(err.user_name, err);
+            } else {
+              console.log(err);
+            }
+          });
+        })).then(() => {
+          this.followingUser.followingUserLoadingDialog = false;
+        });
+      },
     },
     watch: {
       activeTab(tab) {
         if (tab === 'favouriteDownload') {
           this.getFavouriteDownload();
         }
+        if (tab === 'followingUser') {
+          this.getFollowingUser();
+        }
       }
     },
   });
 });
+
+
+function mkdirsSync(dirname) {
+  if (fs.existsSync(dirname)) {
+    return true;
+  } else {
+    if (mkdirsSync(path.dirname(dirname))) {
+      fs.mkdirSync(dirname);
+      return true;
+    }
+  }
+}
