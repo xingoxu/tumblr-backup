@@ -1,6 +1,6 @@
 {
   "name": "tumblr-backup",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "backup tumblr",
   "main": "main.js",
   "scripts": {
