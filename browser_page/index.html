@@ -76,6 +76,10 @@
               style="float:right;"
               @click="downloadFavouriteDownload"
               type="primary">下载</el-button>
+            <el-button
+              style="float:right; margin-right: 10px;"
+              @click="resumeDownload('favourite')"
+              type="text">恢复下载</el-button>
           </div>
 
           <el-dialog
@@ -149,6 +153,10 @@
               style="float:right;"
               @click="downloadUserDownload"
               type="primary">下载</el-button>
+            <el-button
+              style="float:right; margin-right: 10px;"
+              @click="resumeDownload('user')"
+              type="text">恢复下载</el-button>
           </div>
 
           <el-dialog
@@ -167,7 +175,7 @@
       </el-tab-pane>
       <el-tab-pane label="下载管理" name="downloadManager">
         <div>
-          <div v-for="(item, index) in showDownloadQueue" :key="item.key" class="download-item">
+          <div v-for="(item, index) in showDownloadQueue" class="download-item">
             <template>
               <i class="el-icon-check" v-if="item.status == 'completed'"></i>
               <i class="el-icon-warning" v-if="item.status == 'error'"></i>
@@ -228,7 +236,7 @@
           v-else
           style="padding-bottom: 70px;" 
           v-loading.fullscreen.lock="followingUser.gettingFollowing">
-          <div v-for="(user, index) in followingUser.userFollowing" :key="user.key" class="user">
+          <div v-for="(user, index) in followingUser.userFollowing"  class="user">
             <div>
               <el-button
                 class="tumblr-login-button"
@@ -316,14 +324,15 @@
           <el-form-item label="API_KEY">
             <el-input v-model="settings.API_KEY" >
               <template slot="append">
-                <a href="javascript:;"><i class="el-icon-question"></i></a>
+                <a href="javascript:;" @click="settingPage.showAPIChange = true"><i class="el-icon-question"></i></a>
               </template>
             </el-input>
           </el-form-item>
           <el-form-item label="API_Secret">
             <el-input v-model="settings.API_Secret" >
               <template slot="append">
-                <a href="javascript:;"><i class="el-icon-question"></i></a>
+                <a href="javascript:;" 
+                  @click="settingPage.showAPIChange = true"><i class="el-icon-question"></i></a>
               </template>
             </el-input>
           </el-form-item>
@@ -336,6 +345,34 @@
             <el-button type="primary" @click="saveSettings">保存</el-button>
           </el-form-item>
         </el-form>
+        <el-dialog
+          title="修改API_Key与API_Secret"
+          :visible.sync="settingPage.showAPIChange"
+          width="90%">
+          <div>
+            <p>由于 Tumblr 官方限制，每小时最多发送1000次请求，每24小时做多发送5000次请求，每次请求最大20条帖，即每小时只能最多获取20000条帖的图片与视频，每24小时做多只能获取10万条贴的内容。</p>
+            <p>由于这个小工具暂时只内嵌了一个应用的Key，大家共享的情况下，很快次数就会被枯竭。</p>
+            <p>但是我们可以通过自己的Tumblr账号创建一个自己的应用Key以保证独享下载。</p>
+            <p>1. 打开 <a href="javascript:;" @click="openExternal('https://www.tumblr.com/oauth/register')">https://www.tumblr.com/oauth/register</a></p>
+            <p>2. 如下图填写</p>
+            <div>
+              <img style="max-width: 100%" src="img/register_1.png" alt="">
+            </div>
+            <p>粘贴网址在这里：</p>
+            <div>
+              <code>https://works.xingoxu.com/tumblr-backup/authorize.html</code>
+            </div>
+            <p>3. 按下注册后跳转至如下图页面，请按如图复制</p>
+            <div>
+              <img style="max-width: 100%" src="img/register_2.png" alt="">
+            </div>
+            <div>
+              <img style="max-width: 100%" src="img/register_3.png" alt="">
+            </div>
+            <p>4. <strong>点击保存！！！</strong></p>
+            <p>5. 重启软件，重新连接账号即可</p>
+          </div>
+        </el-dialog>
       </el-tab-pane>
       <el-tab-pane label="日志" name="logs">
         <code 
@@ -350,6 +387,9 @@
       width="600px">
       <div>
         <p>这款小工具解决了你的需求了吗？</p>
+        <p>
+          如果出现什么问题欢迎直接跟我联系！
+        </p>
         <p>如果觉得好用欢迎给我点个<a href="javascript:;" @click="openLinkExternal('https://github.com/xingoxu/tumblr-backup')">星星</a>！</p>
         <p>或者你也可以关注我的<a href="javascript:;" @click="openLinkExternal('https://www.weibo.com/1804320382/')">微博</a>、<a href="javascript:;" @click="openLinkExternal('https://twitter.com/xingoxu')">Twitter</a>、或者 <a href="javascript:;" @click="openLinkExternal('https://github.com/xingoxu')">github</a>，又或是告诉身边的朋友（虽然是一次性工具）以支持我这几天的努力！</p>
 

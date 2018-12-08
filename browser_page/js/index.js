@@ -4,8 +4,6 @@ const { app } = require('electron').remote;
 const { shell, ipcRenderer } = require('electron');
 const qs = require('querystring');
 const fs = require('fs');
-const path = require('path');
-const util = require('util');
 const pLimit = require('p-limit');
 const limit = pLimit(50);
 
@@ -56,6 +54,7 @@ new Promise((resolve, reject) => {
           generatingLoginPage: false,
           tumblrLoginError: null,
           auth_request: {},
+          showAPIChange: false,
         },
         downloadManager: {
           downloadQueue: [],
@@ -192,6 +191,7 @@ new Promise((resolve, reject) => {
           switch (post.type) {
             case 'photo': {
               post.photos.forEach((photo, index) => {
+                if (!photo.original_size.url) return;
                 downloadItems.push({
                   thumbnail: photo.original_size.url,
                   folder: post.blog_name,
@@ -206,7 +206,8 @@ new Promise((resolve, reject) => {
               break;
             }
             case 'video': {
-              downloadItems.push({
+              if (!photo.video_url) break;
+                downloadItems.push({
                 thumbnail: post.thumbnail_url,
                 src: post.video_url,
                 folder: post.blog_name,
@@ -233,7 +234,11 @@ new Promise((resolve, reject) => {
             let imgSet = [].slice.call($nodes.find('img'));
 
             imgSet.forEach((img, index) => {
+              if (!img.src) return;
               let src = img.src.replace('_540', '_1280');
+              src = img.src.replace('_640', '_1280');
+              src = img.src.replace('_500', '_1280');
+              src = img.src.replace('_400', '_1280');
               items.push({
                 thumbnail: src,
                 folder: post.blog_name,
@@ -248,6 +253,7 @@ new Promise((resolve, reject) => {
 
             let videoSet = [].slice.call($nodes.find('video'));
             videoSet.forEach((video, index) => {
+              if (!video.currentSrc) return;
               items.push({
                 thumbnail: video.poster,
                 folder: post.blog_name,
@@ -290,21 +296,30 @@ new Promise((resolve, reject) => {
       },
       async getUserDownloadItem(userId) {
         if (this.userDownload.downloadAll) {
-          downloadItem = await this.fetchUserDownloadItem(userId);
+          downloadItem = await this.fetchUserDownloadItem(`https://api.tumblr.com/v2/blog/${userId}.tumblr.com/posts`);
         } else {
           downloadItem = this.userDownload.userImages.filter(value => value.checked);
         }
         return downloadItem;
       },
-      async fetchUserDownloadItem(userId) {
+      async fetchUserDownloadItem(firstURL) {
         let downloadItem = [];
-        let { userImages, nextPage } = await this.fetchUserPics(`https://api.tumblr.com/v2/blog/${userId}.tumblr.com/posts`);
+        let { userImages, nextPage } = await this.fetchUserPics(firstURL);
         downloadItem = userImages;
+        let count = 1;
         while (nextPage != false) {
           this.userDownload.downloadAllLoadingText = nextPage;
           let { userImages: a, nextPage: b } = await this.fetchUserPics(nextPage);
           downloadItem = downloadItem.concat(a);
           nextPage = b;
+          count++;
+          if (count >= 900) {
+            this.$alert(`本次下载API调用次数超过900次，请保存以下网址可在之后继续下载后续<br><code>${nextPage}</code>`, '中断下载', {
+              confirmButtonText: '朕已阅',
+              dangerouslyUseHTMLString: true
+            });
+            break;
+          }
         }
         return downloadItem;
       },
@@ -464,18 +479,50 @@ new Promise((resolve, reject) => {
       async getFavouriteDownloadItem() {
         let downloadItem = [];
         if (this.favouriteDownload.downloadAll) {
-          let { favouriteImages, nextPage } = await this.fetchFavouriteDownload(`https://api.tumblr.com/v2/user/likes`);
-          downloadItem = favouriteImages;
-          while (nextPage != false) {
-            this.favouriteDownload.downloadAllLoadingText = nextPage;
-            let { favouriteImages: a, nextPage: b } = await this.fetchFavouriteDownload(nextPage);
-            downloadItem = downloadItem.concat(a);
-            nextPage = b;
-          }
+          downloadItem = await this.fetchFavouriteDownloadItem(`https://api.tumblr.com/v2/user/likes`);
         } else {
           downloadItem = this.favouriteDownload.favouriteImages.filter(value => value.checked);
         }
         return downloadItem;
+      },
+      async fetchFavouriteDownloadItem(startURL) {
+        let downloadItem = [];
+        let { favouriteImages, nextPage } = await this.fetchFavouriteDownload(startURL);
+        downloadItem = favouriteImages;
+        let count = 1;
+        while (nextPage != false) {
+          this.favouriteDownload.downloadAllLoadingText = nextPage;
+          let { favouriteImages: a, nextPage: b } = await this.fetchFavouriteDownload(nextPage);
+          downloadItem = downloadItem.concat(a);
+          nextPage = b;
+          count++;
+          if (count >= 900) {
+            this.$alert(`本次下载API调用次数超过900次，请保存以下网址可在之后继续下载后续<br><code>${nextPage}</code>`, '中断下载', {
+              confirmButtonText: '朕已阅',
+              dangerouslyUseHTMLString: true
+            });
+            break;
+          }
+        }
+        return downloadItem;
+      },
+      resumeDownload(mode) {
+        this.$prompt('请输入恢复下载网址：', '恢复下载', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+        }).then(({ value }) => {
+          switch (mode) {
+            case 'favourite':
+              this.favouriteDownload.favouriteDownloadLoadingDialog = true;
+              return this.fetchFavouriteDownloadItem(value);
+            case 'user':
+              this.userDownload.userDownloadLoadingDialog = true;
+              return this.fetchUserDownloadItem(value);
+          }
+        }).then(downloadItem => {
+          downloadItem.map(item => limit(() => this.addDownloadQueue(item)));              this.favouriteDownload.favouriteDownloadLoadingDialog = false;
+          this.userDownload.userDownloadLoadingDialog = false;
+        });
       },
       setNextPageFavouriteDownload(response) {
         if (response.liked_posts.length <= 0) {
@@ -596,7 +643,7 @@ new Promise((resolve, reject) => {
       downloadUser(users) {
         this.followingUser.followingUserLoadingDialog = true;
         Promise.all(users.map(user => {
-          return this.fetchUserDownloadItem(user.name).catch(e => {
+          return this.fetchUserDownloadItem(`https://api.tumblr.com/v2/blog/${user.name}.tumblr.com/posts`).catch(e => {
             e.user_name = user.name;
             return Promise.reject(e);
           }).then(downloadItem => {
