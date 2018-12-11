@@ -206,7 +206,7 @@ new Promise((resolve, reject) => {
               break;
             }
             case 'video': {
-              if (!photo.video_url) break;
+              if (!post.video_url) break;
                 downloadItems.push({
                 thumbnail: post.thumbnail_url,
                 src: post.video_url,
