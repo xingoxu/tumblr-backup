@@ -351,6 +351,15 @@ new Promise((resolve, reject) => {
           }
         }, (e, r, body) => {
           let auth_request = qs.parse(body);
+          if (!auth_request.oauth_token) {
+            this.$notify.error({
+              title: '错误',
+              message: '未获取到登录token，请重新尝试或将日志内容反馈。'
+            });
+            this.$refs.consoleDiv.innerText += (`${(e && e.stack) || (e && e.message) || body}` + '\n');
+            this.generatingLoginPage = false;
+            return;
+          }
           let redirect_url = `https://www.tumblr.com/oauth/authorize?${qs.stringify({ oauth_token: auth_request.oauth_token })}`;
           this.settingPage.auth_request = auth_request;
           shell.openExternal(redirect_url);
